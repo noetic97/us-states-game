@@ -11,25 +11,32 @@ const GameBoardContainer = styled.div`
   gap: 16px;
   flex: 1;
   min-height: 0;
+  height: calc(100vh - 200px); // Adjust based on your header/controls height
 `;
 
 const MapWrapper = styled.div`
   position: relative;
   flex: 1;
   min-height: 0;
+  min-width: 0; // Important for flex container
+  overflow: hidden; // Prevent any potential overflow
 `;
 
 const StatesListWrapper = styled.div`
   width: 200px;
-  overflow-y: auto;
+  height: 100%;
+  overflow: hidden; // Ensure the container doesn't scroll
+  border-left: 1px solid #e5e7eb; // Optional: adds a nice separator
+  padding-left: 16px;
 `;
 
 interface GameBoardProps {
   gameMode: GameMode;
-  remainingStates: string[];
   selectedState: string;
   selectedMapState: string;
   hoveredState: string;
+  remainingStates: string[];
+  completedStates: string[];
   inputPosition: Position;
   userInput: string;
   onStateSelect: (state: string) => void;
@@ -43,10 +50,11 @@ interface GameBoardProps {
 
 export function GameBoard({
   gameMode,
-  remainingStates,
   selectedState,
   selectedMapState,
   hoveredState,
+  remainingStates,
+  completedStates,
   inputPosition,
   userInput,
   onStateSelect,
@@ -61,9 +69,9 @@ export function GameBoard({
     <GameBoardContainer>
       <MapWrapper>
         <USAMap
-          remainingStates={remainingStates}
           selectedMapState={selectedMapState}
           hoveredState={hoveredState}
+          completedStates={completedStates}
           onStateClick={onMapStateSelect}
           onStateHover={onStateHover}
           onStateLeave={onStateLeave}
@@ -84,6 +92,7 @@ export function GameBoard({
           <StatesList
             remainingStates={remainingStates}
             selectedState={selectedState}
+            completedStates={completedStates}
             onStateSelect={onStateSelect}
           />
         </StatesListWrapper>

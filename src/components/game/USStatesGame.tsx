@@ -20,6 +20,7 @@ const GameContainer = styled.div`
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   display: flex;
   flex-direction: column;
+  overflow: hidden; // Prevent scrolling
 `;
 
 const GameHeader = styled.div`
@@ -33,12 +34,13 @@ const GameTitle = styled.h1`
 `;
 
 const GameContent = styled.div`
-  padding: 24px;
+  padding: 16px;
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+  overflow: hidden;
 `;
 
 const ControlsContainer = styled.div`
@@ -46,6 +48,7 @@ const ControlsContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  flex-shrink: 0; // Prevent controls from shrinking
 `;
 
 const ControlsGroup = styled.div`
@@ -81,6 +84,7 @@ const initialGameState: GameState = {
   },
   score: 0,
   remainingStates: Object.keys(STATE_CONFIG.stateAbbreviations), // Use all state names
+  completedStates: [],
   selections: {
     fromList: "",
     fromMap: "",
@@ -218,16 +222,22 @@ export default function USStatesGame() {
         ? Math.floor(prevState.timer.time / 10)
         : 0;
     const points = 10 + timeBonus;
-    const newRemainingStates = prevState.remainingStates.filter(
-      (s) => s !== state
-    );
+    // const newRemainingStates = prevState.remainingStates.filter(
+    //   (s) => s !== state
+    // );
 
-    const isGameComplete = newRemainingStates.length === 0;
+    const newCompletedStates = [...prevState.completedStates, state];
+    const isGameComplete =
+      newCompletedStates.length ===
+      Object.keys(STATE_CONFIG.stateAbbreviations).length;
+
+    // const isGameComplete = newRemainingStates.length === 0;
 
     return {
       ...prevState,
       score: prevState.score + points,
-      remainingStates: newRemainingStates,
+      // remainingStates: newRemainingStates,
+      completedStates: newCompletedStates,
       selections: { fromList: "", fromMap: "" },
       status: {
         message: isGameComplete
@@ -325,6 +335,7 @@ export default function USStatesGame() {
           selectedState={gameState.selections.fromList}
           selectedMapState={gameState.selections.fromMap}
           hoveredState={hoveredState}
+          completedStates={gameState.completedStates}
           inputPosition={inputPosition}
           userInput={userInput}
           onStateSelect={handleStateSelect}

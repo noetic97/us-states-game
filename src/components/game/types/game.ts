@@ -15,6 +15,7 @@ export interface GameState {
   };
   score: number;
   remainingStates: string[];
+  completedStates: string[];
   selections: {
     fromList: string;
     fromMap: string;
