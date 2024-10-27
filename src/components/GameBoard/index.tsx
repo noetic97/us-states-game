@@ -3,8 +3,8 @@ import styled from "styled-components";
 import { USAMap } from "../Map/USAMap";
 import { StatesList } from "./StatesList";
 import { HardModeInput } from "./HardModeInput";
-import { GameMode } from "../types/game";
-import { Position } from "../types/ui";
+import { GameMode } from "../../types/game";
+import { Position } from "../../types/ui";
 
 const GameBoardContainer = styled.div`
   display: flex;

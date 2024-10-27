@@ -2,7 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import { ModeControls } from "./ModeControls";
 import { TimerControls } from "./TimerControls";
-import { GameMode, TimerMode } from "../types/game";
+import { GameMode, TimerMode } from "../../types/game";
 
 const ControlsContainer = styled.div`
   display: flex;

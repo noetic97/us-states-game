@@ -1,7 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { X } from "lucide-react";
-import { Position } from "../types/ui";
+import { Position } from "../../types/ui";
 
 const InputContainer = styled.div<{ position: Position }>`
   position: fixed;

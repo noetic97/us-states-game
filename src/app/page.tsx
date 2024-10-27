@@ -1,6 +1,6 @@
 "use client";
 
-import USStatesGame from "@/components/game/USStatesGame";
+import USStatesGame from "@/components/USStatesGame";
 
 export default function Home() {
   return (

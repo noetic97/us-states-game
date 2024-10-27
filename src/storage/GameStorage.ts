@@ -1,4 +1,4 @@
-import { TimerMode, GameMode } from "../components/game/types/game";
+import { TimerMode, GameMode } from "../types/game";
 
 // Type definitions
 export interface GameSettings {

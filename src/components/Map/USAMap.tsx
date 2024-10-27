@@ -7,7 +7,7 @@ import {
   ZoomableGroup,
 } from "react-simple-maps";
 import { geoPath, geoAlbersUsa } from "d3-geo";
-import { Position } from "../types/ui";
+import { Position } from "../../types/ui";
 import {
   STATE_CONFIG,
   standardizeStateName,

@@ -1,7 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { Timer, ArrowDown, ArrowUp } from "lucide-react";
-import { TimerMode } from "../types/game";
+import { TimerMode } from "../../types/game";
 
 const ButtonContainer = styled.div`
   display: flex;

@@ -7,10 +7,10 @@ import { GameBoard } from "./GameBoard";
 import { ModeControls } from "./GameControls/ModeControls";
 import { TimerControls } from "./GameControls/TimerControls";
 import { GameStatus } from "./GameStatus/GameStatus";
-import { GameMode, TimerMode, GameState } from "./types/game";
-import { Position } from "./types/ui";
+import { GameMode, TimerMode, GameState } from "../types/game";
+import { Position } from "../types/ui";
 import { STATE_CONFIG } from "./Map/stateConfig";
-import { gameStorage } from "../../storage/GameStorage";
+import { gameStorage } from "../storage/GameStorage";
 
 const GameContainer = styled.div`
   width: 100%;

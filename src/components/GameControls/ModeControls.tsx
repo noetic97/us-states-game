@@ -1,6 +1,6 @@
 import React from "react";
 import styled from "styled-components";
-import { GameMode } from "../types/game";
+import { GameMode } from "../../types/game";
 
 interface ModeControlsProps {
   gameMode: GameMode;
