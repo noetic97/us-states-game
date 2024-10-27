@@ -25,3 +25,11 @@ export interface GameState {
     type: "success" | "error" | "info";
   };
 }
+
+export interface SavedGameState {
+  mode: GameMode;
+  score: number;
+  completedStates: string[];
+  timerMode: TimerMode;
+  timestamp: number;
+}

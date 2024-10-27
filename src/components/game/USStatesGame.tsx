@@ -9,8 +9,8 @@ import { TimerControls } from "./GameControls/TimerControls";
 import { GameStatus } from "./GameStatus/GameStatus";
 import { GameMode, TimerMode, GameState } from "./types/game";
 import { Position } from "./types/ui";
-// import { HardModeInput } from "./GameBoard/HardModeInput";
 import { STATE_CONFIG } from "./Map/stateConfig";
+import { gameStorage } from "../../storage/GameStorage";
 
 const GameContainer = styled.div`
   width: 100%;
@@ -75,15 +75,25 @@ const ResetButton = styled.button`
   }
 `;
 
-const initialGameState: GameState = {
-  mode: "easy",
+const DEFAULT_SETTINGS = {
+  soundEnabled: false,
+  darkMode: false,
+  lastGameMode: "easy" as GameMode,
+  timerPreferences: {
+    easy: "none" as TimerMode,
+    hard: "none" as TimerMode,
+  },
+};
+
+const getInitialGameState = (mode: GameMode): GameState => ({
+  mode,
   timer: {
     mode: "none",
     time: 300,
     isActive: false,
   },
   score: 0,
-  remainingStates: Object.keys(STATE_CONFIG.stateAbbreviations), // Use all state names
+  remainingStates: Object.keys(STATE_CONFIG.stateAbbreviations),
   completedStates: [],
   selections: {
     fromList: "",
@@ -93,13 +103,191 @@ const initialGameState: GameState = {
     message: "Select a state to begin!",
     type: "info",
   },
-};
+});
 
 export default function USStatesGame() {
-  const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const [gameState, setGameState] = useState<GameState>(
+    getInitialGameState("easy")
+  );
   const [hoveredState, setHoveredState] = useState("");
   const [inputPosition, setInputPosition] = useState<Position>({ x: 0, y: 0 });
   const [userInput, setUserInput] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isStorageInitialized, setIsStorageInitialized] = useState(false);
+
+  const loadSavedGame = async () => {
+    try {
+      setIsLoading(true);
+
+      // Load settings
+      const settings = (await gameStorage.getSettings()) || DEFAULT_SETTINGS;
+      const initialMode = settings.lastGameMode;
+
+      // Load progress for the mode
+      const progress = await gameStorage.getProgressForMode(initialMode);
+
+      setGameState((prevState) => ({
+        ...getInitialGameState(initialMode),
+        mode: initialMode,
+        timer: {
+          mode: settings.timerPreferences[initialMode],
+          time: progress?.timeRemaining || 300,
+          isActive: false,
+        },
+        completedStates: progress?.completedStates || [],
+        remainingStates: Object.keys(STATE_CONFIG.stateAbbreviations).filter(
+          (state) => !progress?.completedStates.includes(state)
+        ),
+        status: {
+          message: progress
+            ? `Welcome back! You've completed ${progress.completedStates.length} states in ${initialMode} mode.`
+            : "Select a state to begin!",
+          type: "info",
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to load saved game:", error);
+      // Fallback to initial state if loading fails
+      setGameState(getInitialGameState("easy"));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGameModeChange = async (newMode: GameMode) => {
+    if (!isStorageInitialized) return;
+
+    try {
+      // Save current progress
+      await saveCurrentProgress();
+
+      // Load settings and update with new mode
+      const settings = (await gameStorage.getSettings()) || DEFAULT_SETTINGS;
+      await gameStorage.saveSettings({
+        ...settings,
+        lastGameMode: newMode,
+      });
+
+      // Load progress for new mode
+      const progress = await gameStorage.getProgressForMode(newMode);
+
+      // Update game state
+      setGameState((prevState) => ({
+        ...getInitialGameState(newMode),
+        mode: newMode,
+        timer: {
+          mode: settings.timerPreferences[newMode],
+          time: progress?.timeRemaining || 300,
+          isActive: false,
+        },
+        completedStates: progress?.completedStates || [],
+        remainingStates: Object.keys(STATE_CONFIG.stateAbbreviations).filter(
+          (state) => !progress?.completedStates.includes(state)
+        ),
+        status: {
+          message: progress
+            ? `Switched to ${newMode} mode. You've completed ${progress.completedStates.length} states.`
+            : `Switched to ${newMode} mode. Good luck!`,
+          type: "info",
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to change game mode:", error);
+    }
+  };
+
+  const saveCurrentProgress = async () => {
+    if (!isStorageInitialized || !gameState.completedStates.length) return;
+
+    try {
+      await gameStorage.saveProgressForMode({
+        mode: gameState.mode,
+        completedStates: gameState.completedStates,
+        timerMode: gameState.timer.mode,
+        timeRemaining:
+          gameState.timer.mode === "countdown"
+            ? gameState.timer.time
+            : undefined,
+        lastPlayed: Date.now(),
+      });
+    } catch (error) {
+      console.error("Failed to save progress:", error);
+    }
+  };
+
+  const handleTimerModeChange = async (mode: TimerMode) => {
+    if (!isStorageInitialized) return;
+
+    try {
+      const settings = (await gameStorage.getSettings()) || DEFAULT_SETTINGS;
+      await gameStorage.saveSettings({
+        ...settings,
+        timerPreferences: {
+          ...settings.timerPreferences,
+          [gameState.mode]: mode,
+        },
+      });
+
+      setGameState((prev) => ({
+        ...prev,
+        timer: {
+          mode,
+          time: mode === "countdown" ? 300 : 0,
+          isActive: false,
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to update timer mode:", error);
+    }
+  };
+
+  const resetGame = async () => {
+    if (!isStorageInitialized) return;
+
+    try {
+      // Save empty progress for current mode
+      await gameStorage.saveProgressForMode({
+        mode: gameState.mode,
+        completedStates: [],
+        timerMode: gameState.timer.mode,
+        timeRemaining: 300,
+        lastPlayed: Date.now(),
+      });
+
+      setGameState((prev) => ({
+        ...getInitialGameState(prev.mode),
+        timer: {
+          ...prev.timer,
+          time: prev.timer.mode === "countdown" ? 300 : 0,
+        },
+      }));
+      setUserInput("");
+      setHoveredState("");
+    } catch (error) {
+      console.error("Failed to reset game:", error);
+    }
+  };
+
+  // Initialize storage when component mounts
+  useEffect(() => {
+    const initializeStorage = async () => {
+      try {
+        await gameStorage.initialize();
+        setIsStorageInitialized(true);
+      } catch (error) {
+        console.error("Failed to initialize storage:", error);
+        setIsStorageInitialized(true); // Still set to true so we can proceed without storage
+      }
+    };
+    initializeStorage();
+  }, []);
+
+  // Load saved game state when storage is initialized
+  useEffect(() => {
+    if (isStorageInitialized) {
+      loadSavedGame();
+    }
+  }, [isStorageInitialized]);
 
   // Timer effect
   useEffect(() => {
@@ -135,39 +323,31 @@ export default function USStatesGame() {
     return () => clearInterval(interval);
   }, [gameState.timer.isActive, gameState.timer.mode]);
 
-  const resetGame = () => {
-    setGameState((prev) => ({
-      ...initialGameState,
-      mode: prev.mode,
-      timer: {
-        ...initialGameState.timer,
-        mode: prev.timer.mode,
-        time: prev.timer.mode === "countdown" ? 300 : 0,
-      },
-    }));
-    setUserInput("");
-    setHoveredState("");
-  };
+  // Auto-save progress when states are completed
+  useEffect(() => {
+    if (isStorageInitialized && gameState.completedStates.length > 0) {
+      saveCurrentProgress();
+    }
+  }, [gameState.completedStates]);
 
-  const handleGameModeChange = (mode: GameMode) => {
-    setGameState((prev) => ({
-      ...initialGameState,
-      mode,
-      timer: { ...prev.timer },
-    }));
-    setUserInput("");
-  };
+  // Save progress when component unmounts
+  useEffect(() => {
+    return () => {
+      if (isStorageInitialized && gameState.completedStates.length > 0) {
+        saveCurrentProgress();
+      }
+    };
+  }, []);
 
-  const handleTimerModeChange = (mode: TimerMode) => {
-    setGameState((prev) => ({
-      ...prev,
-      timer: {
-        mode,
-        time: mode === "countdown" ? 300 : 0,
-        isActive: false,
-      },
-    }));
-  };
+  if (isLoading) {
+    return (
+      <GameContainer>
+        <div className="flex items-center justify-center h-full">
+          Loading your game...
+        </div>
+      </GameContainer>
+    );
+  }
 
   const startTimerIfNeeded = () => {
     if (!gameState.timer.isActive && gameState.timer.mode !== "none") {
