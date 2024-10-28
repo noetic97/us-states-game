@@ -10,21 +10,39 @@ import { GameStatus } from "./GameStatus/GameStatus";
 import { GameMode, TimerMode, GameState } from "../types/game";
 import { Position } from "../types/ui";
 import { STATE_CONFIG } from "./Map/stateConfig";
-import { gameStorage } from "../storage/GameStorage";
+import { useGameStorage } from "../hooks/useGameStorage";
 
 const GameContainer = styled.div`
   width: 100%;
-  height: 100%;
+  height: 100vh;
   background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   display: flex;
   flex-direction: column;
-  overflow: hidden; // Prevent scrolling
+  overflow: hidden;
 `;
 
-const GameHeader = styled.div`
-  padding: 24px 24px 0;
+const StickyHeader = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+const HeaderTop = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const HeaderBottom = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `;
 
 const GameTitle = styled.h1`
@@ -34,21 +52,10 @@ const GameTitle = styled.h1`
 `;
 
 const GameContent = styled.div`
-  padding: 16px;
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
   min-height: 0;
+  padding: 16px;
   overflow: hidden;
-`;
-
-const ControlsContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0; // Prevent controls from shrinking
 `;
 
 const ControlsGroup = styled.div`
@@ -75,16 +82,6 @@ const ResetButton = styled.button`
   }
 `;
 
-const DEFAULT_SETTINGS = {
-  soundEnabled: false,
-  darkMode: false,
-  lastGameMode: "easy" as GameMode,
-  timerPreferences: {
-    easy: "none" as TimerMode,
-    hard: "none" as TimerMode,
-  },
-};
-
 const getInitialGameState = (mode: GameMode): GameState => ({
   mode,
   timer: {
@@ -106,32 +103,38 @@ const getInitialGameState = (mode: GameMode): GameState => ({
 });
 
 export default function USStatesGame() {
+  const {
+    isInitialized,
+    isLoading: isStorageLoading,
+    error: storageError,
+    saveProgress,
+    getProgress,
+    saveSettings,
+    getSettings,
+    getDefaultSettings,
+  } = useGameStorage();
   const [gameState, setGameState] = useState<GameState>(
     getInitialGameState("easy")
   );
   const [hoveredState, setHoveredState] = useState("");
   const [inputPosition, setInputPosition] = useState<Position>({ x: 0, y: 0 });
   const [userInput, setUserInput] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isStorageInitialized, setIsStorageInitialized] = useState(false);
 
   const loadSavedGame = async () => {
     try {
-      setIsLoading(true);
-
       // Load settings
-      const settings = (await gameStorage.getSettings()) || DEFAULT_SETTINGS;
+      const settings = (await getSettings()) || getDefaultSettings();
       const initialMode = settings.lastGameMode;
 
       // Load progress for the mode
-      const progress = await gameStorage.getProgressForMode(initialMode);
+      const progress = await getProgress(initialMode);
 
       setGameState((prevState) => ({
         ...getInitialGameState(initialMode),
         mode: initialMode,
         timer: {
           mode: settings.timerPreferences[initialMode],
-          time: progress?.timeRemaining || 300,
+          time: progress?.timeRemaining || 600,
           isActive: false,
         },
         completedStates: progress?.completedStates || [],
@@ -147,31 +150,45 @@ export default function USStatesGame() {
       }));
     } catch (error) {
       console.error("Failed to load saved game:", error);
-      // Fallback to initial state if loading fails
       setGameState(getInitialGameState("easy"));
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  const saveCurrentProgress = async () => {
+    if (!gameState.completedStates.length) return;
+
+    try {
+      await saveProgress({
+        mode: gameState.mode,
+        completedStates: gameState.completedStates,
+        timerMode: gameState.timer.mode,
+        timeRemaining:
+          gameState.timer.mode === "countdown"
+            ? gameState.timer.time
+            : undefined,
+      });
+    } catch (error) {
+      console.error("Failed to save progress:", error);
     }
   };
 
   const handleGameModeChange = async (newMode: GameMode) => {
-    if (!isStorageInitialized) return;
+    if (!isInitialized) return;
 
     try {
       // Save current progress
       await saveCurrentProgress();
 
       // Load settings and update with new mode
-      const settings = (await gameStorage.getSettings()) || DEFAULT_SETTINGS;
-      await gameStorage.saveSettings({
+      const settings = (await getSettings()) || getDefaultSettings();
+      await saveSettings({
         ...settings,
         lastGameMode: newMode,
       });
 
       // Load progress for new mode
-      const progress = await gameStorage.getProgressForMode(newMode);
+      const progress = await getProgress(newMode);
 
-      // Update game state
       setGameState((prevState) => ({
         ...getInitialGameState(newMode),
         mode: newMode,
@@ -196,31 +213,12 @@ export default function USStatesGame() {
     }
   };
 
-  const saveCurrentProgress = async () => {
-    if (!isStorageInitialized || !gameState.completedStates.length) return;
-
-    try {
-      await gameStorage.saveProgressForMode({
-        mode: gameState.mode,
-        completedStates: gameState.completedStates,
-        timerMode: gameState.timer.mode,
-        timeRemaining:
-          gameState.timer.mode === "countdown"
-            ? gameState.timer.time
-            : undefined,
-        lastPlayed: Date.now(),
-      });
-    } catch (error) {
-      console.error("Failed to save progress:", error);
-    }
-  };
-
   const handleTimerModeChange = async (mode: TimerMode) => {
-    if (!isStorageInitialized) return;
+    if (!isInitialized) return;
 
     try {
-      const settings = (await gameStorage.getSettings()) || DEFAULT_SETTINGS;
-      await gameStorage.saveSettings({
+      const settings = (await getSettings()) || getDefaultSettings();
+      await saveSettings({
         ...settings,
         timerPreferences: {
           ...settings.timerPreferences,
@@ -242,16 +240,14 @@ export default function USStatesGame() {
   };
 
   const resetGame = async () => {
-    if (!isStorageInitialized) return;
+    if (!isInitialized) return;
 
     try {
-      // Save empty progress for current mode
-      await gameStorage.saveProgressForMode({
+      await saveProgress({
         mode: gameState.mode,
         completedStates: [],
         timerMode: gameState.timer.mode,
         timeRemaining: 300,
-        lastPlayed: Date.now(),
       });
 
       setGameState((prev) => ({
@@ -268,26 +264,18 @@ export default function USStatesGame() {
     }
   };
 
-  // Initialize storage when component mounts
-  useEffect(() => {
-    const initializeStorage = async () => {
-      try {
-        await gameStorage.initialize();
-        setIsStorageInitialized(true);
-      } catch (error) {
-        console.error("Failed to initialize storage:", error);
-        setIsStorageInitialized(true); // Still set to true so we can proceed without storage
-      }
-    };
-    initializeStorage();
-  }, []);
-
   // Load saved game state when storage is initialized
   useEffect(() => {
-    if (isStorageInitialized) {
+    if (isInitialized) {
       loadSavedGame();
     }
-  }, [isStorageInitialized]);
+  }, [isInitialized]);
+
+  useEffect(() => {
+    if (isInitialized && gameState.completedStates.length > 0) {
+      saveCurrentProgress();
+    }
+  }, [gameState.completedStates, isInitialized]);
 
   // Timer effect
   useEffect(() => {
@@ -324,26 +312,40 @@ export default function USStatesGame() {
   }, [gameState.timer.isActive, gameState.timer.mode]);
 
   // Auto-save progress when states are completed
-  useEffect(() => {
-    if (isStorageInitialized && gameState.completedStates.length > 0) {
-      saveCurrentProgress();
-    }
-  }, [gameState.completedStates]);
-
   // Save progress when component unmounts
-  useEffect(() => {
-    return () => {
-      if (isStorageInitialized && gameState.completedStates.length > 0) {
-        saveCurrentProgress();
-      }
-    };
-  }, []);
 
-  if (isLoading) {
+  useEffect(() => {
+    let isMounted = true;
+
+    if (isInitialized && gameState.completedStates.length > 0) {
+      const save = async () => {
+        if (isMounted) {
+          await saveCurrentProgress();
+        }
+      };
+      save();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [gameState.completedStates, isInitialized]);
+
+  if (isStorageLoading) {
     return (
       <GameContainer>
         <div className="flex items-center justify-center h-full">
           Loading your game...
+        </div>
+      </GameContainer>
+    );
+  }
+
+  if (storageError) {
+    return (
+      <GameContainer>
+        <div className="flex items-center justify-center h-full text-red-600">
+          Failed to load game data. Please try refreshing the page.
         </div>
       </GameContainer>
     );
@@ -402,16 +404,11 @@ export default function USStatesGame() {
         ? Math.floor(prevState.timer.time / 10)
         : 0;
     const points = 10 + timeBonus;
-    // const newRemainingStates = prevState.remainingStates.filter(
-    //   (s) => s !== state
-    // );
 
     const newCompletedStates = [...prevState.completedStates, state];
     const isGameComplete =
       newCompletedStates.length ===
       Object.keys(STATE_CONFIG.stateAbbreviations).length;
-
-    // const isGameComplete = newRemainingStates.length === 0;
 
     return {
       ...prevState,
@@ -481,11 +478,9 @@ export default function USStatesGame() {
 
   return (
     <GameContainer>
-      <GameHeader>
-        <GameTitle>US States Learning Game</GameTitle>
-      </GameHeader>
-      <GameContent>
-        <ControlsContainer>
+      <StickyHeader>
+        <HeaderTop>
+          <GameTitle>US States Learning Game</GameTitle>
           <ControlsGroup>
             <ModeControls
               gameMode={gameState.mode}
@@ -496,19 +491,23 @@ export default function USStatesGame() {
               timeDisplay={formatTime(gameState.timer.time)}
               onTimerModeChange={handleTimerModeChange}
             />
+            <ResetButton onClick={resetGame}>
+              <RefreshCw size={16} />
+              Reset Game
+            </ResetButton>
           </ControlsGroup>
-          <ResetButton onClick={resetGame}>
-            <RefreshCw size={16} />
-            Reset Game
-          </ResetButton>
-        </ControlsContainer>
+        </HeaderTop>
 
-        <GameStatus
-          score={gameState.score}
-          message={gameState.status.message}
-          messageType={gameState.status.type}
-        />
+        <HeaderBottom>
+          <GameStatus
+            score={gameState.score}
+            message={gameState.status.message}
+            messageType={gameState.status.type}
+          />
+        </HeaderBottom>
+      </StickyHeader>
 
+      <GameContent>
         <GameBoard
           gameMode={gameState.mode}
           remainingStates={gameState.remainingStates}
